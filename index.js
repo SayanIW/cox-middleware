@@ -1,7 +1,7 @@
 import express from "express";
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ type: ["application/json", "application/*+json"] }));
 
 app.post("/vinsolutions", async (req, res) => {
   try {
@@ -19,8 +19,8 @@ app.post("/vinsolutions", async (req, res) => {
       }
     );
 
-    const data = await response.text();
-    res.status(response.status).send(data);
+    const data = await response.json();
+    res.status(response.status).json(data);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -31,24 +31,35 @@ app.post("/vinsolutions/parsed", async (req, res) => {
   try {
     // ✅ JSON is already coming from webhook request
     const json = req.body;
+    const record = Array.isArray(json) ? json[0] : json?.data?.[0] || null;
+    const contact = record?.prospect?.customer?.contact || null;
+    console.log("🔥 Content-Type:", req.headers["content-type"]);
+    console.log("🔥 req.is('application/json'):", req.is("application/json"));
+    console.log("🔥 req.is('application/*+json'):", req.is("application/*+json"));
+    console.log("🔥 typeof req.body:", typeof req.body);
+    console.log("🔥 req.body is array:", Array.isArray(req.body));
+    console.log(
+      "🔥 top-level keys:",
+      req.body && typeof req.body === "object" ? Object.keys(req.body) : "not-an-object"
+    );
+    console.log("🔥 Incoming Body:");
+    console.log(JSON.stringify(req.body, null, 2));
+    console.log("🔥 json.data type:", typeof json?.data);
+    console.log("🔥 json.data is array:", Array.isArray(json?.data));
+    console.log("🔥 selected record:", JSON.stringify(record, null, 2));
+    console.log("🔥 contact path:", JSON.stringify(contact, null, 2));
+
 
     // ✅ Extract values
     const extracted = {
       status: json?.status || null,
-      id: json?.data?.[0]?.id || null,
+      id: record?.id || null,
       firstName:
-        json?.data?.[0]?.prospect?.customer?.contact?.names?.find(
-          (n) => n.part === "first"
-        )?.value || null,
+        contact?.names?.find((n) => n.part === "first")?.value || null,
       lastName:
-        json?.data?.[0]?.prospect?.customer?.contact?.names?.find(
-          (n) => n.part === "last"
-        )?.value || null,
-      email:
-        json?.data?.[0]?.prospect?.customer?.contact?.emails?.[0]?.value ||
-        null,
-      phone:
-        json?.data?.[0]?.prospect?.customer?.contact?.mobilePhone || null,
+        contact?.names?.find((n) => n.part === "last")?.value || null,
+      email: contact?.emails?.[0]?.value || null,
+      phone: contact?.mobilePhone || null,
     };
 
     // ✅ Send flattened response
