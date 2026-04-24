@@ -121,36 +121,17 @@ A: This vehicle is ${core.InventoryType || "N/A"}.
 async function handleFetchInventory(req, res) {
   try {
     const accessToken = await getVinSolutionsAccessToken();
+    const requestedPage = String(req.query.page || "1");
 
     const baseQuery = {
       ...req.query,
       dealerId: req.query.dealerId || "18583",
-      count: req.query.count || "100",
-      page: "1",
+      count: req.query.count || "50",
+      page: requestedPage,
     };
 
-    const firstPage = await fetchInventoryPage(accessToken, baseQuery);
-
-    const pageCount = firstPage?.PagingInfo?.PageCount || 1;
-    let vehicles = Array.isArray(firstPage?.Vehicles) ? [...firstPage.Vehicles] : [];
-
-    // 🔁 Fetch remaining pages
-    if (pageCount > 1) {
-      const remainingPages = await Promise.all(
-        Array.from({ length: pageCount - 1 }, (_, i) =>
-          fetchInventoryPage(accessToken, {
-            ...baseQuery,
-            page: String(i + 2),
-          })
-        )
-      );
-
-      remainingPages.forEach(p => {
-        if (Array.isArray(p?.Vehicles)) {
-          vehicles.push(...p.Vehicles);
-        }
-      });
-    }
+    const inventoryPage = await fetchInventoryPage(accessToken, baseQuery);
+    let vehicles = Array.isArray(inventoryPage?.Vehicles) ? [...inventoryPage.Vehicles] : [];
 
     // ================= 🔍 FILTER (OPTIONAL BUT RECOMMENDED) =================
     const search = (req.query.search || "").toLowerCase();
@@ -173,6 +154,8 @@ async function handleFetchInventory(req, res) {
     res.status(200).json({
       success: true,
       total: vehicles.length,
+      page: Number(inventoryPage?.PagingInfo?.PageNumber || requestedPage),
+      pageCount: Number(inventoryPage?.PagingInfo?.PageCount || 1),
 
       // AI-ready
       formattedVehicles,
