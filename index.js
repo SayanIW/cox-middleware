@@ -79,7 +79,11 @@ function formatVehicleForAI(vehicle) {
   const pricing = vehicle.Pricing || {};
   const dealer = vehicle.Dealer || {};
 
-  const name = `${core.Year || ""} ${core.Make || ""} ${core.Model || ""} ${core.Trim || ""}`.trim();
+  const nameParts = [core.Year, core.Make, core.Model, core.Trim]
+    .map((value) => String(value || "").trim())
+    .filter((value) => value && value.toLowerCase() !== "null" && value.toLowerCase() !== "undefined");
+
+  const name = nameParts.join(" ") || core.StockNumber || core.VIN || "Unknown Vehicle";
 
   return {
     name,
@@ -120,11 +124,17 @@ A: This vehicle is ${core.InventoryType || "N/A"}.
 async function handleFetchInventory(req, res) {
   try {
     const accessToken = await getVinSolutionsAccessToken();
-    const { page: _ignoredPage, ...remainingQuery } = req.query;
+    const {
+      page: _ignoredPage,
+      search: _localSearch,
+      stockNumber,
+      ...remainingQuery
+    } = req.query;
 
     const baseQuery = {
       ...remainingQuery,
       dealerId: req.query.dealerId || "18583",
+      ...(stockNumber ? { stockNumber } : {}),
       count: req.query.count || "50",
       page: "1",
     };
