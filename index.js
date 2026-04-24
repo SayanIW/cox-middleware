@@ -84,11 +84,10 @@ function formatVehicleForAI(vehicle) {
   return {
     name,
     text: `
-Vehicle: ${name}
-Condition: ${core.InventoryType || "N/A"}
 Stock Number: ${core.StockNumber || "N/A"}
+Vehicle: ${name}
 VIN: ${core.VIN || "N/A"}
-
+Condition: ${core.InventoryType || "N/A"}
 Price: $${pricing.Price || "N/A"}
 Internet Price: $${pricing.InternetPrice || "N/A"}
 
