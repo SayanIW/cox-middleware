@@ -93,7 +93,7 @@ Vehicle: ${name}
 VIN: ${core.VIN || "N/A"}
 Condition: ${core.InventoryType || "N/A"}
 Price: $${pricing.Price || "N/A"}
-Internet Price: $${pricing.InternetPrice || "N/A"}
+MSRP: $${pricing.MSRP || "N/A"}
 
 Mileage: ${core.Mileage || "N/A"} miles
 Engine: ${core.Engine || "N/A"}
@@ -109,7 +109,7 @@ Dealer: ${dealer.Name || "N/A"}
 FAQs:
 
 Q: What is the price of the ${name}?
-A: The price is $${pricing.Price || "N/A"} and the internet price is $${pricing.InternetPrice || "N/A"}.
+A: The price is $${pricing.Price || "N/A"} and the MSRP is $${pricing.MSRP || "N/A"}.
 
 Q: What is the mileage of the ${name}?
 A: It has ${core.Mileage || "N/A"} miles.
