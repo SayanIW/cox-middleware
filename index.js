@@ -8,6 +8,7 @@ let vinSolutionsToken = {
   expiresAt: 0,
 };
 
+// ================= TOKEN =================
 async function getVinSolutionsAccessToken() {
   const now = Date.now();
 
@@ -24,9 +25,7 @@ async function getVinSolutionsAccessToken() {
 
   const response = await fetch("https://authentication.vinsolutions.com/connect/token", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: tokenBody,
   });
 
@@ -44,18 +43,14 @@ async function getVinSolutionsAccessToken() {
   return vinSolutionsToken.accessToken;
 }
 
+// ================= FETCH PAGE =================
 async function fetchInventoryPage(accessToken, query) {
   const url = new URL("https://sandbox.api.vinsolutions.com/gateway/v1/vehicle/getInventory");
 
   for (const [key, value] of Object.entries(query)) {
     if (Array.isArray(value)) {
-      for (const item of value) {
-        url.searchParams.append(key, item);
-      }
-      continue;
-    }
-
-    if (value !== undefined && value !== null && value !== "") {
+      value.forEach(v => url.searchParams.append(key, v));
+    } else if (value !== undefined && value !== null && value !== "") {
       url.searchParams.append(key, value);
     }
   }
@@ -69,51 +64,64 @@ async function fetchInventoryPage(accessToken, query) {
     },
   });
 
-  const contentType = response.headers.get("content-type") || "";
-  const data = contentType.includes("application/json")
-    ? await response.json()
-    : await response.text();
+  const data = await response.json();
 
   if (!response.ok) {
-    const message = typeof data === "string"
-      ? data
-      : data?.ErrorMessage || data?.error || "Inventory request failed";
-    throw new Error(message);
-  }
-
-  if (typeof data === "string") {
-    throw new Error("Inventory API returned a non-JSON response");
+    throw new Error(data?.ErrorMessage || data?.error || "Inventory request failed");
   }
 
   return data;
 }
 
-app.post("/vinsolutions", async (req, res) => {
-  try {
-    const response = await fetch(
-      "https://sandbox.api.vinsolutions.com/leadSubmissions",
-      {
-        method: "POST",
-        headers: {
-          "Accept": "application/vnd.coxauto.v2+json",
-          "Content-Type": "application/vnd.coxauto.v2+json",
-          "api_key": '6ZprbgiKHq2wWCmUaVlzO13HZDaNmn4L1YNoSElN',
-          "Authorization": req.headers.authorization, // dynamic token from GHL
-        },
-        body: JSON.stringify(req.body),
-      }
-    );
+// ================= FORMATTER (🔥 IMPORTANT) =================
+function formatVehicleForAI(vehicle) {
+  const core = vehicle.Core || {};
+  const pricing = vehicle.Pricing || {};
+  const dealer = vehicle.Dealer || {};
 
-    const data = await response.json();
-    res.status(response.status).json(data);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+  const name = `${core.Year || ""} ${core.Make || ""} ${core.Model || ""} ${core.Trim || ""}`.trim();
 
+  return {
+    name,
+    text: `
+Vehicle: ${name}
+Condition: ${core.InventoryType || "N/A"}
+Stock Number: ${core.StockNumber || "N/A"}
+VIN: ${core.VIN || "N/A"}
+
+Price: $${pricing.Price || "N/A"}
+Internet Price: $${pricing.InternetPrice || "N/A"}
+
+Mileage: ${core.Mileage || "N/A"} miles
+Engine: ${core.Engine || "N/A"}
+Transmission: ${core.Transmission || "N/A"}
+
+Fuel Economy: ${core.CityMPG || "N/A"} MPG city / ${core.HwyMPG || "N/A"} MPG highway
+
+Exterior Color: ${core.ExteriorColor || "N/A"}
+Interior Color: ${core.InteriorColor || "N/A"}
+
+Dealer: ${dealer.Name || "N/A"}
+
+FAQs:
+
+Q: What is the price of the ${name}?
+A: The price is $${pricing.Price || "N/A"} and the internet price is $${pricing.InternetPrice || "N/A"}.
+
+Q: What is the mileage of the ${name}?
+A: It has ${core.Mileage || "N/A"} miles.
+
+Q: Is this vehicle new or used?
+A: This vehicle is ${core.InventoryType || "N/A"}.
+    `.trim()
+  };
+}
+
+// ================= MAIN HANDLER =================
 async function handleFetchInventory(req, res) {
   try {
     const accessToken = await getVinSolutionsAccessToken();
+
     const baseQuery = {
       ...req.query,
       dealerId: req.query.dealerId || "18583",
@@ -122,93 +130,67 @@ async function handleFetchInventory(req, res) {
     };
 
     const firstPage = await fetchInventoryPage(accessToken, baseQuery);
-    const pageCount = firstPage?.PagingInfo?.PageCount || 1;
-    const vehicles = Array.isArray(firstPage?.Vehicles) ? [...firstPage.Vehicles] : [];
 
+    const pageCount = firstPage?.PagingInfo?.PageCount || 1;
+    let vehicles = Array.isArray(firstPage?.Vehicles) ? [...firstPage.Vehicles] : [];
+
+    // 🔁 Fetch remaining pages
     if (pageCount > 1) {
       const remainingPages = await Promise.all(
-        Array.from({ length: pageCount - 1 }, (_, index) =>
+        Array.from({ length: pageCount - 1 }, (_, i) =>
           fetchInventoryPage(accessToken, {
             ...baseQuery,
-            page: String(index + 2),
+            page: String(i + 2),
           })
         )
       );
 
-      for (const pageData of remainingPages) {
-        if (Array.isArray(pageData?.Vehicles)) {
-          vehicles.push(...pageData.Vehicles);
+      remainingPages.forEach(p => {
+        if (Array.isArray(p?.Vehicles)) {
+          vehicles.push(...p.Vehicles);
         }
-      }
+      });
     }
 
+    // ================= 🔍 FILTER (OPTIONAL BUT RECOMMENDED) =================
+    const search = (req.query.search || "").toLowerCase();
+
+    if (search) {
+      vehicles = vehicles.filter(v => {
+        const core = v.Core || {};
+        return `${core.Year} ${core.Make} ${core.Model} ${core.Trim}`
+          .toLowerCase()
+          .includes(search);
+      });
+    }
+
+    // ================= 🔥 TRANSFORM =================
+    const formattedVehicles = vehicles.map(formatVehicleForAI);
+
+    const combinedText = formattedVehicles.map(v => v.text).join("\n\n---\n\n");
+
+    // ================= RESPONSE =================
     res.status(200).json({
-      ...firstPage,
-      PagingInfo: {
-        ...firstPage.PagingInfo,
-        PageNumber: 1,
-        PageSize: vehicles.length,
-        PageCount: pageCount,
-        TotalItems: firstPage?.PagingInfo?.TotalItems || vehicles.length,
-      },
-      Vehicles: vehicles,
-      TotalCount: firstPage?.TotalCount || vehicles.length,
-      Success: firstPage?.Success ?? true,
-      ErrorMessage: firstPage?.ErrorMessage || null,
+      success: true,
+      total: vehicles.length,
+
+      // AI-ready
+      formattedVehicles,
+
+      // Optional
+      combinedText,
     });
+
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 }
 
+// ================= ROUTES =================
 app.get("/fetch-inventory", handleFetchInventory);
 app.get("/fetch_inventory", handleFetchInventory);
 
-// 🔥 NEW ROUTE → parses + flattens JSON
-app.post("/vinsolutions/parsed", async (req, res) => {
-  try {
-    // ✅ JSON is already coming from webhook request
-    const json = req.body;
-    const record = Array.isArray(json) ? json[0] : json?.data?.[0] || null;
-    const contact = record?.prospect?.customer?.contact || null;
-    console.log("🔥 Content-Type:", req.headers["content-type"]);
-    console.log("🔥 req.is('application/json'):", req.is("application/json"));
-    console.log("🔥 req.is('application/*+json'):", req.is("application/*+json"));
-    console.log("🔥 typeof req.body:", typeof req.body);
-    console.log("🔥 req.body is array:", Array.isArray(req.body));
-    console.log(
-      "🔥 top-level keys:",
-      req.body && typeof req.body === "object" ? Object.keys(req.body) : "not-an-object"
-    );
-    console.log("🔥 Incoming Body:");
-    console.log(JSON.stringify(req.body, null, 2));
-    console.log("🔥 json.data type:", typeof json?.data);
-    console.log("🔥 json.data is array:", Array.isArray(json?.data));
-    console.log("🔥 selected record:", JSON.stringify(record, null, 2));
-    console.log("🔥 contact path:", JSON.stringify(contact, null, 2));
-
-
-    // ✅ Extract values
-    const extracted = {
-      status: json?.status || null,
-      id: record?.id || null,
-      firstName:
-        contact?.names?.find((n) => n.part === "first")?.value || null,
-      lastName:
-        contact?.names?.find((n) => n.part === "last")?.value || null,
-      email: contact?.emails?.[0]?.value || null,
-      phone: contact?.mobilePhone || null,
-    };
-
-    // ✅ Send flattened response
-    res.status(200).json(extracted);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-
-
+// ================= SERVER =================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
