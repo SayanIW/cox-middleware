@@ -121,17 +121,35 @@ A: This vehicle is ${core.InventoryType || "N/A"}.
 async function handleFetchInventory(req, res) {
   try {
     const accessToken = await getVinSolutionsAccessToken();
-    const requestedPage = String(req.query.page || "1");
+    const { page: _ignoredPage, ...remainingQuery } = req.query;
 
     const baseQuery = {
-      ...req.query,
+      ...remainingQuery,
       dealerId: req.query.dealerId || "18583",
       count: req.query.count || "50",
-      page: requestedPage,
+      page: "1",
     };
 
-    const inventoryPage = await fetchInventoryPage(accessToken, baseQuery);
-    let vehicles = Array.isArray(inventoryPage?.Vehicles) ? [...inventoryPage.Vehicles] : [];
+    const firstPage = await fetchInventoryPage(accessToken, baseQuery);
+    const pageCount = firstPage?.PagingInfo?.PageCount || 1;
+    let vehicles = Array.isArray(firstPage?.Vehicles) ? [...firstPage.Vehicles] : [];
+
+    if (pageCount > 1) {
+      const remainingPages = await Promise.all(
+        Array.from({ length: pageCount - 1 }, (_, index) =>
+          fetchInventoryPage(accessToken, {
+            ...baseQuery,
+            page: String(index + 2),
+          })
+        )
+      );
+
+      remainingPages.forEach((pageData) => {
+        if (Array.isArray(pageData?.Vehicles)) {
+          vehicles.push(...pageData.Vehicles);
+        }
+      });
+    }
 
     // ================= 🔍 FILTER (OPTIONAL BUT RECOMMENDED) =================
     const search = (req.query.search || "").toLowerCase();
@@ -151,18 +169,7 @@ async function handleFetchInventory(req, res) {
     const combinedText = formattedVehicles.map(v => v.text).join("\n\n---\n\n");
 
     // ================= RESPONSE =================
-    res.status(200).json({
-      success: true,
-      total: vehicles.length,
-      page: Number(inventoryPage?.PagingInfo?.PageNumber || requestedPage),
-      pageCount: Number(inventoryPage?.PagingInfo?.PageCount || 1),
-
-      // AI-ready
-      formattedVehicles,
-
-      // Optional
-      combinedText,
-    });
+    return res.status(200).type("text/plain").send(combinedText);
 
   } catch (error) {
     res.status(500).json({ error: error.message });
