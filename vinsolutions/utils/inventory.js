@@ -13,7 +13,7 @@ export async function fetchInventoryPage(accessToken, query) {
     method: "GET",
     headers: {
       Accept: "application/json",
-      api_key: "qugIdk9o3o5M1QZSgDC7z6cTJSN6NYUJ8De8hRIa",
+      api_key: "",
       Authorization: `Bearer ${accessToken}`,
     },
   });
