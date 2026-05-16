@@ -13,7 +13,7 @@ export async function getVinSolutionsAccessToken() {
   const tokenBody = new URLSearchParams({
     grant_type: "client_credentials",
     client_id: "gatew-d5abf439107d43a684f0eb9b24268dab",
-    client_secret: "8E29DBB07BD9415FAC17B738DCE79243",
+    client_secret: "",
     scope: "PublicAPI",
   });
 
