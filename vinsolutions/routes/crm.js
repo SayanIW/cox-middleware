@@ -79,7 +79,7 @@ export function setupInventoryRoutes(app) {
           headers: {
             "Accept": "application/vnd.coxauto.v2+json",
             "Content-Type": "application/vnd.coxauto.v2+json",
-            "api_key": "6ZprbgiKHq2wWCmUaVlzO13HZDaNmn4L1YNoSElN",
+            "api_key": "",
             "Authorization": req.headers.authorization,
           },
           body: JSON.stringify(req.body),
