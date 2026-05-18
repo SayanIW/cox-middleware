@@ -1,47 +1,67 @@
 import { getVinSolutionsAccessToken } from "../utils/token.js";
 import { fetchInventoryPage } from "../utils/inventory.js";
 import { formatVehicleForAI } from "../utils/formatter.js";
+import { fetchInventoryFromS3 } from "../utils/s3.js";
 
 export async function handleFetchInventory(req, res) {
   try {
-    const accessToken = await getVinSolutionsAccessToken();
     const {
       page: _ignoredPage,
       search: _localSearch,
       stockNumber,
+      source = "s3",
+      s3Bucket,
+      s3Key,
       ...remainingQuery
     } = req.query;
 
-    const baseQuery = {
-      ...remainingQuery,
-      dealerId: req.query.dealerId || "18583",
-      ...(stockNumber ? { stockNumber } : {}),
-      count: req.query.count || "50",
-      page: "1",
-    };
+    let vehicles = [];
 
-    const firstPage = await fetchInventoryPage(accessToken, baseQuery);
-    const pageCount = firstPage?.PagingInfo?.PageCount || 1;
-    let vehicles = Array.isArray(firstPage?.Vehicles) ? [...firstPage.Vehicles] : [];
+    if (source === "s3") {
+      // ── S3 path ─────────────────────────────────────────────────────────────
+      vehicles = await fetchInventoryFromS3({ bucket: s3Bucket, key: s3Key });
 
-    if (pageCount > 1) {
-      const remainingPages = await Promise.all(
-        Array.from({ length: pageCount - 1 }, (_, index) =>
-          fetchInventoryPage(accessToken, {
-            ...baseQuery,
-            page: String(index + 2),
-          })
-        )
-      );
+      // Filter by stockNumber if provided
+      if (stockNumber) {
+        vehicles = vehicles.filter(
+          (v) => String(v.Core?.StockNumber || "").toLowerCase() === String(stockNumber).toLowerCase()
+        );
+      }
+    } else {
+      // ── VinSolutions API path ───────────────────────────────────────────────
+      const accessToken = await getVinSolutionsAccessToken();
 
-      remainingPages.forEach((pageData) => {
-        if (Array.isArray(pageData?.Vehicles)) {
-          vehicles.push(...pageData.Vehicles);
-        }
-      });
+      const baseQuery = {
+        ...remainingQuery,
+        dealerId: req.query.dealerId || "18583",
+        ...(stockNumber ? { stockNumber } : {}),
+        count: req.query.count || "50",
+        page: "1",
+      };
+
+      const firstPage = await fetchInventoryPage(accessToken, baseQuery);
+      const pageCount = firstPage?.PagingInfo?.PageCount || 1;
+      vehicles = Array.isArray(firstPage?.Vehicles) ? [...firstPage.Vehicles] : [];
+
+      if (pageCount > 1) {
+        const remainingPages = await Promise.all(
+          Array.from({ length: pageCount - 1 }, (_, index) =>
+            fetchInventoryPage(accessToken, {
+              ...baseQuery,
+              page: String(index + 2),
+            })
+          )
+        );
+
+        remainingPages.forEach((pageData) => {
+          if (Array.isArray(pageData?.Vehicles)) {
+            vehicles.push(...pageData.Vehicles);
+          }
+        });
+      }
     }
 
-    // Filter (optional but recommended)
+    // Filter by free-text search (optional but recommended)
     const search = (req.query.search || "").toLowerCase();
 
     if (search) {
