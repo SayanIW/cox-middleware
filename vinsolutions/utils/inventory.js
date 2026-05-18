@@ -13,7 +13,7 @@ export async function fetchInventoryPage(accessToken, query) {
     method: "GET",
     headers: {
       Accept: "application/json",
-      api_key: "",
+      api_key: process.env.VINSOLUTIONS_API_KEY,
       Authorization: `Bearer ${accessToken}`,
     },
   });

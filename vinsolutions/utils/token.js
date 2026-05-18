@@ -12,8 +12,8 @@ export async function getVinSolutionsAccessToken() {
 
   const tokenBody = new URLSearchParams({
     grant_type: "client_credentials",
-    client_id: "gatew-d5abf439107d43a684f0eb9b24268dab",
-    client_secret: "",
+    client_id: process.env.VINSOLUTIONS_CLIENT_ID,
+    client_secret: process.env.VINSOLUTIONS_CLIENT_SECRET,
     scope: "PublicAPI",
   });
 
