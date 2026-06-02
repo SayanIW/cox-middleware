@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(aws s3 *)",
+      "Bash(wsl aws *)",
+      "Bash(pip show *)",
+      "Bash(pip3 show *)",
+      "Read(//c/Users/cepl/.local/bin/**)",
+      "Read(//snap/bin/**)",
+      "Read(//c/Program Files/**)",
+      "PowerShell(& \"C:\\\\Users\\\\cepl\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python314\\\\Scripts\\\\aws.cmd\" --version 2>&1)",
+      "Read(//c/Users/cepl/AppData/Roaming/**)",
+      "Read(//c/Users/cepl/AppData/Local/Programs/Antigravity/bin/**)",
+      "Read(//c/Users/cepl/.aws/**)",
+      "Bash(curl \"https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip\" -o \"/tmp/awscliv2.zip\")",
+      "Bash(unzip -q /tmp/awscliv2.zip -d /tmp)",
+      "Bash(sudo /tmp/aws/install)",
+      "Bash(/tmp/aws/install --install-dir ~/.local/aws-cli --bin-dir ~/.local/bin)",
+      "Read(//c/Users/cepl/**)",
+      "PowerShell(Start-Process msiexec.exe -ArgumentList \"/i $env:TEMP\\\\AWSCLIV2.msi /quiet /norestart\" -Wait -PassThru | Select-Object ExitCode)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Amazon\\\\AWSCLIV2\\\\aws.exe\" --version)",
+      "Bash(python3 -m pip install awscli)",
+      "Bash(aws --version)",
+      "Bash(python3 -m awscli --version)",
+      "Bash(python3 -m awscli s3 ls s3://voyce-profit/vendor-drop/ --profile vp)",
+      "Bash(python3 -m awscli s3 cp s3://voyce-profit/vendor-drop/jarrett_inventory_2026-06-02.csv . --profile vp)",
+      "Bash(python3 -m awscli s3 cp s3://voyce-profit/vendor-drop/jarrett_inventory_2026-06-02.csv /tmp/jarrett_sample.csv --profile vp)",
+      "Read(//tmp/**)"
+    ]
+  }
+}

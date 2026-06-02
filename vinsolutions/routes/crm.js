@@ -1,7 +1,7 @@
 import { getVinSolutionsAccessToken } from "../utils/token.js";
 import { fetchInventoryPage } from "../utils/inventory.js";
 import { formatVehicleForAI } from "../utils/formatter.js";
-import { fetchInventoryFromS3 } from "../utils/s3.js";
+import { fetchLatestJarrInventoryFromS3 } from "../utils/s3.js";
 
 export async function handleFetchInventory(req, res) {
   try {
@@ -9,26 +9,16 @@ export async function handleFetchInventory(req, res) {
       page: _ignoredPage,
       search: _localSearch,
       stockNumber,
-      source = "s3",
       s3Bucket,
-      s3Key,
+      s3Key: _s3Key,
+      source: _source,
       ...remainingQuery
     } = req.query;
 
     let vehicles = [];
 
-    if (source === "s3") {
-      // ── S3 path ─────────────────────────────────────────────────────────────
-      vehicles = await fetchInventoryFromS3({ bucket: s3Bucket, key: s3Key });
-
-      // Filter by stockNumber if provided
-      if (stockNumber) {
-        vehicles = vehicles.filter(
-          (v) => String(v.Core?.StockNumber || "").toLowerCase() === String(stockNumber).toLowerCase()
-        );
-      }
-    } else {
-      // ── VinSolutions API path ───────────────────────────────────────────────
+    // ── 1. VinSolutions API ──────────────────────────────────────────────────
+    try {
       const accessToken = await getVinSolutionsAccessToken();
 
       const baseQuery = {
@@ -58,6 +48,25 @@ export async function handleFetchInventory(req, res) {
             vehicles.push(...pageData.Vehicles);
           }
         });
+      }
+    } catch (apiErr) {
+      console.warn("[fetch-inventory] VinSolutions API failed, falling back to S3:", apiErr.message);
+    }
+
+    // ── 2. Jarrett S3 CSV fallback (if API returned nothing) ────────────────
+    if (vehicles.length === 0) {
+      console.log("[fetch-inventory] No results from API, trying Jarrett S3 CSV");
+      const allJarrett = await fetchLatestJarrInventoryFromS3({ bucket: s3Bucket });
+
+      if (stockNumber) {
+        const needle = String(stockNumber).toLowerCase();
+        vehicles = allJarrett.filter(
+          (v) =>
+            String(v.Core?.StockNumber || "").toLowerCase() === needle ||
+            String(v.Core?.VIN || "").toLowerCase() === needle
+        );
+      } else {
+        vehicles = allJarrett;
       }
     }
 
