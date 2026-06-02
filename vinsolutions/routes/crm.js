@@ -1,47 +1,76 @@
 import { getVinSolutionsAccessToken } from "../utils/token.js";
 import { fetchInventoryPage } from "../utils/inventory.js";
 import { formatVehicleForAI } from "../utils/formatter.js";
+import { fetchLatestJarrInventoryFromS3 } from "../utils/s3.js";
 
 export async function handleFetchInventory(req, res) {
   try {
-    const accessToken = await getVinSolutionsAccessToken();
     const {
       page: _ignoredPage,
       search: _localSearch,
       stockNumber,
+      s3Bucket,
+      s3Key: _s3Key,
+      source: _source,
       ...remainingQuery
     } = req.query;
 
-    const baseQuery = {
-      ...remainingQuery,
-      dealerId: req.query.dealerId || "18583",
-      ...(stockNumber ? { stockNumber } : {}),
-      count: req.query.count || "50",
-      page: "1",
-    };
+    let vehicles = [];
 
-    const firstPage = await fetchInventoryPage(accessToken, baseQuery);
-    const pageCount = firstPage?.PagingInfo?.PageCount || 1;
-    let vehicles = Array.isArray(firstPage?.Vehicles) ? [...firstPage.Vehicles] : [];
+    // ── 1. VinSolutions API ──────────────────────────────────────────────────
+    try {
+      const accessToken = await getVinSolutionsAccessToken();
 
-    if (pageCount > 1) {
-      const remainingPages = await Promise.all(
-        Array.from({ length: pageCount - 1 }, (_, index) =>
-          fetchInventoryPage(accessToken, {
-            ...baseQuery,
-            page: String(index + 2),
-          })
-        )
-      );
+      const baseQuery = {
+        ...remainingQuery,
+        dealerId: req.query.dealerId || "18583",
+        ...(stockNumber ? { stockNumber } : {}),
+        count: req.query.count || "50",
+        page: "1",
+      };
 
-      remainingPages.forEach((pageData) => {
-        if (Array.isArray(pageData?.Vehicles)) {
-          vehicles.push(...pageData.Vehicles);
-        }
-      });
+      const firstPage = await fetchInventoryPage(accessToken, baseQuery);
+      const pageCount = firstPage?.PagingInfo?.PageCount || 1;
+      vehicles = Array.isArray(firstPage?.Vehicles) ? [...firstPage.Vehicles] : [];
+
+      if (pageCount > 1) {
+        const remainingPages = await Promise.all(
+          Array.from({ length: pageCount - 1 }, (_, index) =>
+            fetchInventoryPage(accessToken, {
+              ...baseQuery,
+              page: String(index + 2),
+            })
+          )
+        );
+
+        remainingPages.forEach((pageData) => {
+          if (Array.isArray(pageData?.Vehicles)) {
+            vehicles.push(...pageData.Vehicles);
+          }
+        });
+      }
+    } catch (apiErr) {
+      console.warn("[fetch-inventory] VinSolutions API failed, falling back to S3:", apiErr.message);
     }
 
-    // Filter (optional but recommended)
+    // ── 2. Jarrett S3 CSV fallback (if API returned nothing) ────────────────
+    if (vehicles.length === 0) {
+      console.log("[fetch-inventory] No results from API, trying Jarrett S3 CSV");
+      const allJarrett = await fetchLatestJarrInventoryFromS3({ bucket: s3Bucket });
+
+      if (stockNumber) {
+        const needle = String(stockNumber).toLowerCase();
+        vehicles = allJarrett.filter(
+          (v) =>
+            String(v.Core?.StockNumber || "").toLowerCase() === needle ||
+            String(v.Core?.VIN || "").toLowerCase() === needle
+        );
+      } else {
+        vehicles = allJarrett;
+      }
+    }
+
+    // Filter by free-text search (optional but recommended)
     const search = (req.query.search || "").toLowerCase();
 
     if (search) {
