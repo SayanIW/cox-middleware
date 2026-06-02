@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import { setupInventoryRoutes } from "./vinsolutions/routes/crm.js";
 import { setupDealership360Routes } from "./dealership360/routes/crm.js";

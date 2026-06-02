@@ -1,8 +1,9 @@
 {
-  "name": "vinsolutions-proxy",
+  "name": "cox-middleware",
   "version": "1.0.0",
   "type": "module",
   "dependencies": {
+    "dotenv": "^17.4.2",
     "express": "^4.18.2"
   },
   "scripts": {
