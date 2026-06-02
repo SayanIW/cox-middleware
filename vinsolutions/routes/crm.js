@@ -67,15 +67,18 @@ export async function handleFetchInventory(req, res) {
 }
 
 export async function handleLeadSubmission(req, res) {
+  console.log("[/vinsolutions] Request received");
+  console.log("[/vinsolutions] Headers:", JSON.stringify(req.headers, null, 2));
+  console.log("[/vinsolutions] Body:", JSON.stringify(req.body, null, 2));
   try {
     const response = await fetch(
-      "https://sandbox.api.vinsolutions.com/leadSubmissions",
+      "https://integration.api.vinsolutions.com/leadSubmissions",
       {
         method: "POST",
         headers: {
           "Accept": "application/vnd.coxauto.v2+json",
           "Content-Type": "application/vnd.coxauto.v2+json",
-          "api_key": process.env.VINSOLUTIONS_API_KEY,
+          "api_key": process.env.LEAD_SUBMISSIONS_API_KEY,
           "Authorization": req.headers.authorization,
         },
         body: JSON.stringify(req.body),

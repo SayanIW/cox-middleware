@@ -1,5 +1,5 @@
 export async function fetchInventoryPage(accessToken, query) {
-  const url = new URL("https://sandbox.api.vinsolutions.com/gateway/v1/vehicle/getInventory");
+  const url = new URL("https://integration.api.vinsolutions.com/gateway/v1/vehicle/getInventory");
 
   for (const [key, value] of Object.entries(query)) {
     if (Array.isArray(value)) {
@@ -13,7 +13,7 @@ export async function fetchInventoryPage(accessToken, query) {
     method: "GET",
     headers: {
       Accept: "application/json",
-      api_key: process.env.VINSOLUTIONS_API_KEY,
+      api_key: process.env.DIGITAL_SHOWROOM_API_KEY,
       Authorization: `Bearer ${accessToken}`,
     },
   });
