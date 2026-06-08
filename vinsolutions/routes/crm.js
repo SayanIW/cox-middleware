@@ -17,45 +17,47 @@ export async function handleFetchInventory(req, res) {
 
     let vehicles = [];
 
-    // ── 1. VinSolutions API ──────────────────────────────────────────────────
-    try {
-      const accessToken = await getVinSolutionsAccessToken();
+    // ── 1. VinSolutions API (only when stockNumber is provided) ─────────────
+    if (stockNumber) {
+      try {
+        const accessToken = await getVinSolutionsAccessToken();
 
-      const baseQuery = {
-        ...remainingQuery,
-        dealerId: req.query.dealerId || "18583",
-        ...(stockNumber ? { stockNumber } : {}),
-        count: req.query.count || "50",
-        page: "1",
-      };
+        const baseQuery = {
+          ...remainingQuery,
+          dealerId: req.query.dealerId || "18583",
+          stockNumber,
+          count: req.query.count || "50",
+          page: "1",
+        };
 
-      const firstPage = await fetchInventoryPage(accessToken, baseQuery);
-      const pageCount = firstPage?.PagingInfo?.PageCount || 1;
-      vehicles = Array.isArray(firstPage?.Vehicles) ? [...firstPage.Vehicles] : [];
+        const firstPage = await fetchInventoryPage(accessToken, baseQuery);
+        const pageCount = firstPage?.PagingInfo?.PageCount || 1;
+        vehicles = Array.isArray(firstPage?.Vehicles) ? [...firstPage.Vehicles] : [];
 
-      if (pageCount > 1) {
-        const remainingPages = await Promise.all(
-          Array.from({ length: pageCount - 1 }, (_, index) =>
-            fetchInventoryPage(accessToken, {
-              ...baseQuery,
-              page: String(index + 2),
-            })
-          )
-        );
+        if (pageCount > 1) {
+          const remainingPages = await Promise.all(
+            Array.from({ length: pageCount - 1 }, (_, index) =>
+              fetchInventoryPage(accessToken, {
+                ...baseQuery,
+                page: String(index + 2),
+              })
+            )
+          );
 
-        remainingPages.forEach((pageData) => {
-          if (Array.isArray(pageData?.Vehicles)) {
-            vehicles.push(...pageData.Vehicles);
-          }
-        });
+          remainingPages.forEach((pageData) => {
+            if (Array.isArray(pageData?.Vehicles)) {
+              vehicles.push(...pageData.Vehicles);
+            }
+          });
+        }
+      } catch (apiErr) {
+        console.warn("[fetch-inventory] VinSolutions API failed, falling back to S3:", apiErr.message);
       }
-    } catch (apiErr) {
-      console.warn("[fetch-inventory] VinSolutions API failed, falling back to S3:", apiErr.message);
     }
 
-    // ── 2. Jarrett S3 CSV fallback (if API returned nothing) ────────────────
+    // ── 2. Jarrett S3 CSV (always when no stockNumber; fallback when API empty) ──
     if (vehicles.length === 0) {
-      console.log("[fetch-inventory] No results from API, trying Jarrett S3 CSV");
+      console.log("[fetch-inventory] Fetching from Jarrett S3 CSV");
       const allJarrett = await fetchLatestJarrInventoryFromS3({ bucket: s3Bucket });
 
       if (stockNumber) {
