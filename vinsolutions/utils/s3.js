@@ -175,12 +175,12 @@ function mapJarrRowToVehicle(row) {
       Price: row.Price || "",
       MSRP: row.MSRP || "",
     },
-    Dealer: {
-      Name: row.Dealership_name || "",
-      Phone: row.Dealership_phone || "",
-      // City: row.Dealership_City || "",
-      // State: row.Dealership_state || "",
-    },
+    // Dealer: {
+    //   Name: row.Dealership_name || "",
+    //   Phone: row.Dealership_phone || "",
+    //   City: row.Dealership_City || "",
+    //   State: row.Dealership_state || "",
+    // },
     Media: {
       ImageLink: row.Image_Link || "",
       VDP: row.VDP || "",
