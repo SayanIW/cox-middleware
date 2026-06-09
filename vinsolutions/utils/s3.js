@@ -178,8 +178,8 @@ function mapJarrRowToVehicle(row) {
     Dealer: {
       Name: row.Dealership_name || "",
       Phone: row.Dealership_phone || "",
-      City: row.Dealership_City || "",
-      State: row.Dealership_state || "",
+      // City: row.Dealership_City || "",
+      // State: row.Dealership_state || "",
     },
     Media: {
       ImageLink: row.Image_Link || "",
