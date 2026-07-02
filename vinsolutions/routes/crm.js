@@ -3,6 +3,38 @@ import { fetchInventoryPage } from "../utils/inventory.js";
 import { formatVehicleForAI } from "../utils/formatter.js";
 import { fetchLatestJarrInventoryFromS3 } from "../utils/s3.js";
 
+const BANNER = "=".repeat(50);
+
+/**
+ * Wrap a formatted vehicle record in a strong delimiter block.
+ * The stock number appears at the TOP and BOTTOM of every record so
+ * any retrieval chunk still carries its identifier.
+ */
+function wrapRecordWithDelimiter(vehicle, formattedText) {
+  const core = vehicle.Core || {};
+  const stock = String(core.StockNumber || core.VIN || "UNKNOWN")
+    .replace(/\s+/g, "")
+    .toUpperCase();
+
+  const vehicleLabel = [core.Year, core.Make, core.Model, core.Trim]
+    .filter(Boolean)
+    .join(" ");
+
+  const header = vehicleLabel
+    ? `STOCK NUMBER: ${stock} — ${vehicleLabel}`
+    : `STOCK NUMBER: ${stock}`;
+
+  return [
+    BANNER,
+    header,
+    BANNER,
+    String(formattedText || "").trim(),
+    BANNER,
+    `END OF STOCK NUMBER: ${stock}`,
+    BANNER,
+  ].join("\n");
+}
+
 export async function handleFetchInventory(req, res) {
   try {
     const {
@@ -84,10 +116,10 @@ export async function handleFetchInventory(req, res) {
       });
     }
 
-    // Transform
-    const formattedVehicles = vehicles.map(formatVehicleForAI);
-
-    const combinedText = formattedVehicles.map(v => v.text).join("\n\n---\n\n");
+    // Transform: format each vehicle, then wrap in delimiter banners
+    const combinedText = vehicles
+      .map((v) => wrapRecordWithDelimiter(v, formatVehicleForAI(v).text))
+      .join("\n\n");
 
     // Response
     return res.status(200).type("text/plain").send(combinedText);
